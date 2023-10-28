@@ -1,0 +1,72 @@
+name: $(Date:yyyyMMdd) $(Build.RequestedFor) Tareas
+trigger: none # Disable CI triggers.
+
+pool:
+  name: 'API-CD-DEVOPS'
+  vmImage: ubuntu-latest
+
+parameters:
+- name: operation_performance
+  type: string
+  values:
+    - Raise web apis instamces
+    - Raise integration server instances
+    - Raise web apis instances
+    - Raise extended integration server instances
+    - Register web apis targets
+    - Register integration server targets
+    - Register extended web api targets
+    - Register extended integration server targets
+    - Deregister integration server extended targets
+    - Deregister web api targets
+    - Deregister integration server targets
+    - Deregister integration extended targets
+    - Deregister web api extended targets
+    - End web api instances
+    - End integration server instances
+    - End web api extended instances
+    - End integration server extended instances
+
+
+jobs:
+  - job:
+    steps:
+    - task: AWSShellScript@1
+      displayName: Assume operation role
+      inputs:
+        awsCredentials: 'nequi-sherpa-pdn-aws-operation'
+        regionName: 'us-east-1'
+        scriptType: 'inline'
+        workingDirectory: 'implementaciones_area/solicitud_acomp_instancias'
+        inlineScript: |
+          pwd
+          id=$(aws sts get-caller-identity --query Account --output text)
+          CREDS=$(aws sts assume-role --role-arn xxxxx --role-session-name $BUILD_REQUESTEDFOREMAIL --duration-seconds 1800)
+          # your credentials go here
+          AWS_ACCESS_KEY_ID="$(echo $CREDS | jq -r '.Credentials.AccessKeyId')"
+          AWS_SECRET_ACCESS_KEY="$(echo $CREDS | jq -r '.Credentials.SecretAccessKey')"
+          AWS_SESSION_TOKEN="$(echo $CREDS | jq -r '.Credentials.SessionToken')"
+          AWS_EXPIRATION=$(echo $CREDS | jq -r '.Credentials.Expiration')
+          echo "##vso[task.setvariable variable=AWS_ACCESS_KEY_ID]$AWS_ACCESS_KEY_ID"
+          echo "##vso[task.setvariable variable=AWS_SECRET_ACCESS_KEY]$AWS_SECRET_ACCESS_KEY"
+          echo "##vso[task.setvariable variable=AWS_SESSION_TOKEN]$AWS_SESSION_TOKEN"
+          pip install python-dotenv
+          pip install environs
+
+
+          
+    
+    - task: PythonScript@0
+      displayName: Funciones levantamiento de instancias
+      inputs:
+          pythonInterpreter: /usr/bin/python3
+          regionName: 'us-east-1'
+          scriptSource: 'filePath'
+          scriptPath: 'capacity_provisioning/raise_instances.py'     
+
+    - script: |
+          pwd
+          cd "capacity_provisioning"
+          seleccion=${{parameters.operation_performance}}
+          python3 main.py "${{parameters.operation_performance}}"
+        
